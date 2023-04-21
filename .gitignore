@@ -41,3 +41,5 @@ spark-importer.iws
 .DS_Store
 
 graph-studio-http/tmp/
+nohup.out
+.nohup.out.swp
