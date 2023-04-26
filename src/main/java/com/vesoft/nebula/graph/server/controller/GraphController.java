@@ -3,18 +3,14 @@ package com.vesoft.nebula.graph.server.controller;
 import com.vesoft.nebula.client.graph.data.ResultSet;
 import com.vesoft.nebula.client.graph.exception.IOErrorException;
 import com.vesoft.nebula.graph.server.entity.ErrorCode;
-import com.vesoft.nebula.graph.server.entity.NebulaConnectRequest;
 import com.vesoft.nebula.graph.server.entity.NebulaConnectResponse;
-import com.vesoft.nebula.graph.server.entity.NebulaQueryRequest;
 import com.vesoft.nebula.graph.server.entity.NebulaQueryResponse;
 import com.vesoft.nebula.graph.server.service.NebulaGraphService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -98,7 +94,7 @@ public class GraphController {
     /**
      * insert vertex
      */
-    @GetMapping("/insertVertex")
+    @PostMapping("/insertVertex")
     @ResponseBody
     public NebulaQueryResponse insertVertex(@RequestParam String uid,
                                             @RequestParam String birthday,
@@ -110,9 +106,9 @@ public class GraphController {
                                             @RequestParam String locationIp,
                                             @RequestParam String creationDate) {
         String statement = String.format(
-                "INSERT VERTEX Person(birthday, firstName, lastName," +
-                        "gender, language, browserUsed, locationIP, creationDate) values " +
-                        "\"%s\":(%s, \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s)",
+                "INSERT VERTEX Person(birthday, firstName, lastName, gender, language, " +
+                        "browserUsed, locationIP, creationDate) values \"%s\":(date(\"%s\"), " +
+                        "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", datetime(\"%s\"))",
                 uid, birthday, firstName, lastName, gender, language, browserUsed, locationIp,
                 creationDate);
         return execute(statement);
@@ -134,7 +130,7 @@ public class GraphController {
         }
         String statement = String.format(
                 "INSERT EDGE knows(creationDate) values " +
-                        "\"%s\"->\"%s\"@%d:(%s)", srcUid, dstUid, rank, creationDate);
+                        "\"%s\"->\"%s\"@%d:(date(\"%s\"))", srcUid, dstUid, edgeRank, creationDate);
         return execute(statement);
     }
 
@@ -142,7 +138,7 @@ public class GraphController {
     /**
      * update vertex
      */
-    @GetMapping("/updateVertex")
+    @PostMapping("/updateVertex")
     @ResponseBody
     public NebulaQueryResponse updateVertex(@RequestParam String uid,
                                             @RequestParam String browserUsed) {
