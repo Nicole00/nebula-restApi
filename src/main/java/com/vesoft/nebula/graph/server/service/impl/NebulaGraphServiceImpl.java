@@ -55,6 +55,9 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
 
     @Override
     public Boolean connect(String hosts, String user, String passwd, String space) {
+        if (sessionPool != null) {
+            sessionPool.close();
+        }
         LOG.info("NebulaGraphService.connect, parameters:hosts={},user={},passwd={}", hosts, user
                 , passwd);
         List<HostAddress> addresses = new ArrayList<>();
@@ -78,18 +81,20 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
 
     @Override
     public void close() {
-        sessionPool.close();
+        if (sessionPool != null) {
+            sessionPool.close();
+        }
     }
 
 
     @Override
-    public ResultSet executeNgql(String ngql) throws IOErrorException{
+    public ResultSet executeNgql(String ngql) throws IOErrorException {
         ResultSet resultSet = null;
         try {
             resultSet = sessionPool.execute(ngql);
         } catch (ClientServerIncompatibleException | AuthFailedException | BindSpaceFailedException e) {
             // ignore
-        } catch(IOErrorException e){
+        } catch (IOErrorException e) {
             LOG.error("execute failed, ", e);
             throw e;
         }
