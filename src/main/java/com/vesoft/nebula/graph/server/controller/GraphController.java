@@ -157,11 +157,17 @@ public class GraphController {
             LOG.error("Controller-> execute failed, ", e);
             response.setResp(ErrorCode.ERROR);
             return response;
+        } catch (Exception e) {
+            LOG.error("Controller-> execute failed for unknown reason, ", e);
+            response.setResp(ErrorCode.ERROR);
+            return response;
         }
 
         if (resultSet == null) {
             response.setResp(ErrorCode.ERROR);
         } else {
+            LOG.info(String.format("execute result{ code: %d, message: %s}",
+                    resultSet.getErrorCode(), resultSet.getErrorMessage()));
             response.setRowCount(resultSet.rowsSize());
             response.setLatency(resultSet.getLatency());
             response.setCode(resultSet.getErrorCode());
