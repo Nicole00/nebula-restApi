@@ -5,32 +5,43 @@ import java.io.Serializable;
 
 public class NebulaQueryResponse implements Serializable {
 
-    /** error code */
-    private int code;
+    private Version version = new Version();
 
-    /** error message */
-    private String message;
+    /**
+     * error code
+     */
+    private boolean error;
 
-    private int rowCount;
+    /**
+     * error message
+     */
+    private String message = null;
 
-    private long latency;
+    private Result result;
 
-    public NebulaQueryResponse(){
-        code = ErrorCode.SUCCESS.getErrorCode();
-        message = ErrorCode.SUCCESS.getErrorMsg();
+
+    public NebulaQueryResponse(Result result) {
+        error = ErrorCode.SUCCESS.getErrorCode();
+        this.result = result;
     }
 
-    public void setResp(ErrorCode errorCode){
-        code = errorCode.getErrorCode();
-        message = errorCode.getErrorMsg();
+    public NebulaQueryResponse(boolean error, String message, Result result) {
+        this.error = error;
+        this.message = message;
+        this.result = result;
     }
 
-    public int getCode() {
-        return code;
+
+    public void setResp(ErrorCode errorCode) {
+        error = errorCode.getErrorCode();
     }
 
-    public void setCode(int code) {
-        this.code = code;
+    public boolean getError() {
+        return error;
+    }
+
+    public void setError(boolean error) {
+        this.error = error;
     }
 
     public String getMessage() {
@@ -41,19 +52,23 @@ public class NebulaQueryResponse implements Serializable {
         this.message = message;
     }
 
-    public int getRowCount() {
-        return rowCount;
+    public Version getVersion() {
+        return version;
     }
 
-    public void setRowCount(int rowCount) {
-        this.rowCount = rowCount;
+    public void setVersion(Version version) {
+        this.version = version;
     }
 
-    public long getLatency() {
-        return latency;
+    public boolean isError() {
+        return error;
     }
 
-    public void setLatency(long latency) {
-        this.latency = latency;
+    public Result getResult() {
+        return result;
+    }
+
+    public void setResult(Result result) {
+        this.result = result;
     }
 }
