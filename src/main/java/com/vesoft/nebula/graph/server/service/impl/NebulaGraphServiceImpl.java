@@ -11,12 +11,16 @@ import com.vesoft.nebula.client.graph.exception.ClientServerIncompatibleExceptio
 import com.vesoft.nebula.client.graph.exception.IOErrorException;
 import com.vesoft.nebula.graph.server.exceptions.QueryException;
 import com.vesoft.nebula.graph.server.service.NebulaGraphService;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Configurable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -62,6 +66,18 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
     // interval time between retry, unit: millsecond
     @Value("${nebula.graph.intervalTime}")
     private int intervalTime = 100;
+
+    @Value("${hdfs.defaultFS}")
+    private String hdfsDefaultFS;
+
+    @Value("${kerberos.user}")
+    private String kerberosUser;
+
+    @Value("${keytab.path}")
+    private String keytabPath;
+
+    @Value("${krb5.conf.path}")
+    private String krb5ConfPath;
 
     private String timeZoneOffset;
 
@@ -140,6 +156,17 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
 
     @Override
     public void save(List<String> results, String filePath, String taskId) {
+        FileSystem fs = getHadoopFs();
+        if(filePath.endsWith("/")){
+            filePath = filePath + taskId;
+        }else{
+            filePath = filePath + "/" + taskId;
+        }
+
+        if(!exist(fs, filePath)){
+            mkdir(fs, filePath);
+        }
+
 
     }
 
@@ -153,4 +180,36 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         }
         return resultSet;
     }
+
+    private FileSystem getHadoopFs() throws IOException {
+        System.setProperty("java.security.krb5.conf", krb5ConfPath);
+        Configuration conf = new Configuration();
+        conf.set("fs.defaultFS", hdfsDefaultFS);
+        conf.set("hadoop.security.authentication", "kerberos");
+        conf.setBoolean("hadoop.security.authorization", true);
+        UserGroupInformation.setConfiguration(conf);
+        try {
+            UserGroupInformation.loginUserFromKeytab(kerberosUser, keytabPath);
+            FileSystem fs = FileSystem.get(conf);
+            return fs;
+        } catch (IOException e) {
+            LOG.error("Connect to HDFS with user={}, keytab.path={}, krb5.conf.path={}, defaultFS={} failed, ",
+                    kerberosUser, keytabPath, krb5ConfPath, hdfsDefaultFS, e);
+            throw e;
+        }
+    }
+
+    private boolean exist(FileSystem fs, String path) throws IOException {
+        return fs.exists(new Path(path));
+    }
+
+    private boolean mkdir(FileSystem fs, String path) throws IOException {
+        return fs.mkdirs(new Path(path));
+    }
+
+    private void write2Hdfs(List<String> lines, FileSystem fs){
+
+    }
+
+
 }
