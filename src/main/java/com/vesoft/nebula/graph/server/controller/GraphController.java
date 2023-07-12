@@ -34,18 +34,18 @@ public class GraphController {
     /**
      * query instrument name according instrument id
      *
-     * @param uniscid instrument id
+     * @param ins_id 机构的统一社会信用代码，即uniscid 的值
      */
     @GetMapping("/check_ins_id")
     @ResponseBody
-    public NebulaQueryResponse queryInsName(@RequestParam String uniscid) {
-        LOG.info("Enter GraphController.queryInsName, parameter: uniscid={}", uniscid);
+    public NebulaQueryResponse queryInsName(@RequestParam String ins_id) {
+        LOG.info("Enter GraphController.queryInsName, parameter: ins_id={}", ins_id);
 
-        if (uniscid == null || "".equals(uniscid)) {
+        if (ins_id == null || "".equals(ins_id)) {
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "参数非法", null);
         }
 
-        String statement = String.format("LOOKUP ON ins WHERE ins.uniscid == \"%s\" YIELD ins.entname;", uniscid);
+        String statement = String.format("LOOKUP ON ins WHERE ins.uniscid == \"%s\" YIELD ins.entname;", ins_id);
 
         List<Result> results = new ArrayList<>();
         try {
@@ -65,6 +65,7 @@ public class GraphController {
     }
 
 
+    // 算法2
     @GetMapping("/single_ins_relation_rpt")
     @ResponseBody
     public NebulaQueryResponse queryInstrumentRelation(@RequestParam String people_name,
@@ -95,6 +96,66 @@ public class GraphController {
             LOG.error("queryInstrumentRelation failed for unsupported encoding exception", e);
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "数据编码失败", null);
         }
+        try {
+            nebulaGraphService.save(results, file_path, task_id);
+        } catch (IOException e) {
+            LOG.error("queryInstrumentRelation failed to save result", e);
+            return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "结果写HDFS失败：" + e.getMessage(), null);
+        }
+        return new NebulaQueryResponse(null);
+    }
+
+
+    // 算法3
+    @GetMapping("/double_ins_relation_rpt")
+    @ResponseBody
+    public NebulaQueryResponse queryInstrumentsRelation(@RequestParam String people_name_start,
+                                                        @RequestParam String ins_id_start,
+                                                        @RequestParam String people_name_end,
+                                                        @RequestParam String ins_id_end,
+                                                        @RequestParam int depth,
+                                                        @RequestParam int max_out_degree,
+                                                        @RequestParam String file_path,
+                                                        @RequestParam String task_id) {
+        LOG.info("Enter GraphController.queryInstrumentRelation, parameter: " +
+                        "people_name_start={},ins_id_start={},people_name_end{},ins_id_end={}" +
+                        ",depth={},max_out_degree={},file_path={},task_id={}",
+                people_name_start, ins_id_start, people_name_end, ins_id_end,
+                depth, max_out_degree, file_path, task_id);
+
+        if (ins_id_start == null || "".equals(ins_id_start) || depth < 0
+                || ins_id_end == null || "".equals(ins_id_end)
+                || file_path == null || "".equals(file_path)
+                || task_id == null || "".equals(task_id)) {
+            return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "参数非法", null);
+        }
+
+        String statement = String.format("$src = lookup on ins where ins.uniscid ==\"%s\" YIELD id(vertex) as vid;" +
+                        "$dst = lookup on ins where ins.uniscid ==\"%s\" YIELD id(vertex) as vid;" +
+                        "find noloop path with prop from $src.vid to $dst.vid over * bidirect upto %d steps yield " +
+                        "path as p;",
+                ins_id_start, ins_id_end, depth);
+        if (max_out_degree > 0) {
+            String maxOutDegreeStatement = String.format("| yield $-.p as p where all (x in nodes(p) where x.statistics.out_degree<%d);", max_out_degree);
+            statement = statement + maxOutDegreeStatement;
+        }
+
+        List<String> results;
+        try {
+            results = nebulaGraphService.queryInstrumentsRelation(statement);
+        } catch (QueryException e) {
+            LOG.error("queryInstrumentRelation failed, error for execute statement {}", statement, e);
+            return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "请求执行失败:" + e.getMessage(), null);
+        } catch (UnsupportedEncodingException e) {
+            LOG.error("queryInstrumentRelation failed for unsupported encoding exception", e);
+            return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "数据编码失败", null);
+        }
+        LOG.info("queryInstrumentRelation success.");
+        if (results == null) {
+            LOG.info("result is empty.");
+            return new NebulaQueryResponse(null);
+        }
+
         try {
             nebulaGraphService.save(results, file_path, task_id);
         } catch (IOException e) {

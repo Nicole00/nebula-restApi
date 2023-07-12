@@ -12,6 +12,7 @@ import com.vesoft.nebula.client.graph.exception.ClientServerIncompatibleExceptio
 import com.vesoft.nebula.client.graph.exception.IOErrorException;
 import com.vesoft.nebula.graph.server.exceptions.QueryException;
 import com.vesoft.nebula.graph.server.service.NebulaGraphService;
+import com.vesoft.nebula.graph.server.utils.ResolvePath;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -160,6 +161,32 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
     @Override
     public List<String> queryInstrumentRelation(String statement) throws QueryException, UnsupportedEncodingException {
         return null;
+    }
+
+    @Override
+    public List<String> queryInstrumentsRelation(String statement) throws QueryException, UnsupportedEncodingException {
+        LOG.info("Enter NebulaGraphService.queryInstrumentsRelation, parameter: statement={}", statement);
+        ResultSet resultSet = null;
+        try {
+            resultSet = executeNgql(statement);
+        } catch (IOErrorException e) {
+            LOG.error("queryInstrumentsRelation error for statement {}", statement, e);
+            throw new QueryException("查询执行失败", e);
+        }
+        if (!resultSet.isSucceeded()) {
+            LOG.error("queryInstrumentsRelation failed, failed to execute statement {}, for {}", statement,
+                    resultSet.getErrorMessage());
+            throw new QueryException("查询执行错误:" + resultSet.getErrorMessage(), null);
+        }
+        LOG.info("queryInstrumentsRelation success, result row count={}, latency={}",
+                resultSet.getRows().size(),
+                resultSet.getLatency());
+
+        // 解析result中的path
+        if(resultSet.isEmpty()){
+            return null;
+        }
+        return ResolvePath.getPathString(resultSet.getRows());
     }
 
     @Override

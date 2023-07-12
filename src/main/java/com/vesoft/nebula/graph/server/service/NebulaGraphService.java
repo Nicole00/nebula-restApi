@@ -28,6 +28,8 @@ public interface NebulaGraphService {
 
     List<String> queryInstrumentRelation(String statement) throws QueryException, UnsupportedEncodingException;
 
+    List<String> queryInstrumentsRelation(String statement) throws QueryException, UnsupportedEncodingException;
+
     void save(List<String> results, String filePath, String taskId) throws IOException;
 
     /**
