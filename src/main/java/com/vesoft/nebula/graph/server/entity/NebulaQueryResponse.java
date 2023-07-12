@@ -2,6 +2,7 @@ package com.vesoft.nebula.graph.server.entity;
 
 import com.vesoft.nebula.client.graph.data.ResultSet;
 import java.io.Serializable;
+import java.util.List;
 
 public class NebulaQueryResponse implements Serializable {
 
@@ -17,15 +18,15 @@ public class NebulaQueryResponse implements Serializable {
      */
     private String message = null;
 
-    private Result result;
+    private List<Result> result;
 
 
-    public NebulaQueryResponse(Result result) {
+    public NebulaQueryResponse(List<Result> result) {
         error = ErrorCode.SUCCESS.getErrorCode();
         this.result = result;
     }
 
-    public NebulaQueryResponse(boolean error, String message, Result result) {
+    public NebulaQueryResponse(boolean error, String message, List<Result> result) {
         this.error = error;
         this.message = message;
         this.result = result;
@@ -64,11 +65,11 @@ public class NebulaQueryResponse implements Serializable {
         return error;
     }
 
-    public Result getResult() {
+    public List<Result> getResult() {
         return result;
     }
 
-    public void setResult(Result result) {
+    public void setResult(List<Result> result) {
         this.result = result;
     }
 }

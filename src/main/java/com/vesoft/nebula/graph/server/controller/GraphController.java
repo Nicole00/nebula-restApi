@@ -9,6 +9,7 @@ import com.vesoft.nebula.graph.server.entity.NebulaQueryResponse;
 import com.vesoft.nebula.graph.server.entity.Result;
 import com.vesoft.nebula.graph.server.exceptions.QueryException;
 import com.vesoft.nebula.graph.server.service.NebulaGraphService;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,9 +46,13 @@ public class GraphController {
         }
 
         String statement = String.format("LOOKUP ON ins WHERE ins.uniscid == \"%s\" YIELD ins.entname;", uniscid);
-        String insName;
+
+        List<Result> results = new ArrayList<>();
         try {
-            insName = nebulaGraphService.queryInsName(statement);
+            List<String> insNames = nebulaGraphService.queryInsName(statement);
+            for (String name : insNames) {
+                results.add(new Result(name));
+            }
         } catch (QueryException e) {
             LOG.error("queryInsName failed, error for execute statement {}, ", statement, e);
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "请求执行失败:" + e.getMessage(), null);
@@ -55,7 +60,8 @@ public class GraphController {
             LOG.error("queryInsName failed for unsupported encoding exception", e);
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "数据编码失败", null);
         }
-        return new NebulaQueryResponse(new Result(insName));
+
+        return new NebulaQueryResponse(results);
     }
 
 
@@ -89,7 +95,12 @@ public class GraphController {
             LOG.error("queryInstrumentRelation failed for unsupported encoding exception", e);
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "数据编码失败", null);
         }
-        nebulaGraphService.save(results, file_path, task_id);
+        try {
+            nebulaGraphService.save(results, file_path, task_id);
+        } catch (IOException e) {
+            LOG.error("queryInstrumentRelation failed to save result", e);
+            return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "结果写HDFS失败：" + e.getMessage(), null);
+        }
         return new NebulaQueryResponse(null);
     }
 }

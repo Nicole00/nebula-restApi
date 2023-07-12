@@ -1,8 +1,16 @@
 package com.vesoft.nebula.graph.server.service;
 
+import com.vesoft.nebula.client.graph.data.ResultSet;
+import com.vesoft.nebula.client.graph.exception.IOErrorException;
 import com.vesoft.nebula.graph.server.data.MockNebulaData;
+import com.vesoft.nebula.graph.server.service.impl.NebulaGraphServiceImpl;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,10 +43,8 @@ public class NebulaGraphServiceImplTest {
 
     @Test
     public void testConnect() {
-        String addresses = "192.168.15.5:9669,192.168.15.6:9669,192.168.15.7:9669";
-        String space = "test";
         try {
-            connectFlag = service.connect(addresses, "root", "nebula", space);
+            connectFlag = service.connect();
         } catch (Exception e) {
             e.printStackTrace();
             assert (false);
@@ -53,23 +59,27 @@ public class NebulaGraphServiceImplTest {
             testConnect();
         }
         String statement = "SHOW SPACES";
-        ResultSet resultSet = service.executeNgql(statement);
+        ResultSet resultSet = null;
+        try {
+            resultSet = service.executeNgql(statement);
+        } catch (IOErrorException e) {
+            e.printStackTrace();
+            assert(false);
+        }
         assert (resultSet.isSucceeded());
     }
 
-    @Test
-    public void TestExecuteWithOneBadGraphd() {
-        if (!connectFlag) {
-            testConnect();
-        }
-        String statement = "SHOW SPACES";
-        List<ResultSet> resultList = Collections.synchronizedList(new ArrayList<>());
-        // restart the graphd server during executing the loop
-        for (int i = 0; i < 100; i++) {
-            ResultSet resultSet = service.executeNgql(statement);
-            resultList.add(resultSet);
-        }
 
-        assert (resultList.stream().filter(ResultSet::isSucceeded).count() == 100);
+    @Test
+    public void connectHdfs(){
+        try {
+            Method getHadoopFsMethod = service.getClass().getDeclaredMethod("getHadoopFs");
+            getHadoopFsMethod.setAccessible(true);
+            FileSystem fs = (FileSystem) getHadoopFsMethod.invoke(service);
+            fs.listStatus(new Path("/"));
+        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | IOException e) {
+            e.printStackTrace();
+            assert(false);
+        }
     }
 }

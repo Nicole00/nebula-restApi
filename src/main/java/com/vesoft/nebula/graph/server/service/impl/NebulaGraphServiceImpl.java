@@ -1,5 +1,6 @@
 package com.vesoft.nebula.graph.server.service.impl;
 
+import com.vesoft.nebula.Row;
 import com.vesoft.nebula.client.graph.SessionPool;
 import com.vesoft.nebula.client.graph.SessionPoolConfig;
 import com.vesoft.nebula.client.graph.data.HostAddress;
@@ -113,7 +114,7 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         }
     }
 
-    public String queryInsName(String statement) throws QueryException, UnsupportedEncodingException {
+    public List<String> queryInsName(String statement) throws QueryException, UnsupportedEncodingException {
         LOG.info("Enter NebulaGraphService.queryInsName, parameter: statement={}", statement);
         ResultSet resultSet = null;
         try {
@@ -130,22 +131,29 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         LOG.info("queryInsName success, result row count={}, latency={}",
                 resultSet.getRows().size(),
                 resultSet.getLatency());
+
+        List<String> insNames = new ArrayList<>();
+
         if (resultSet.isEmpty()) {
-            return null;
+            return insNames;
         }
-        List<com.vesoft.nebula.Value> insNames = resultSet.getRows().get(0).values;
-        if (insNames.isEmpty()) {
-            return null;
+        List<Row> insRows = resultSet.getRows();
+        if (insRows.isEmpty()) {
+            return insNames;
         }
-        String insName;
 
         try {
-            insName = new ValueWrapper(insNames.get(0), "utf-8").asString();
+            for (Row ins : insRows) {
+                if (ins.values.isEmpty()) {
+                    continue;
+                }
+                insNames.add((new ValueWrapper(ins.values.get(0), "utf-8")).asString());
+            }
         } catch (UnsupportedEncodingException e) {
             LOG.error("encoding insName failed ", e);
             throw e;
         }
-        return insName;
+        return insNames;
     }
 
 
@@ -155,19 +163,31 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
     }
 
     @Override
-    public void save(List<String> results, String filePath, String taskId) {
-        FileSystem fs = getHadoopFs();
-        if(filePath.endsWith("/")){
+    public void save(List<String> results, String filePath, String taskId) throws IOException {
+        FileSystem fs = null;
+        try {
+            fs = getHadoopFs();
+        } catch (IOException e) {
+            LOG.error("Connect to HDFS with user={}, keytab.path={}, krb5.conf.path={}, defaultFS={} failed, ",
+                    kerberosUser, keytabPath, krb5ConfPath, hdfsDefaultFS, e);
+            throw new IOException("HDFS连接失败", e);
+        }
+        if (filePath.endsWith("/")) {
             filePath = filePath + taskId;
-        }else{
+        } else {
             filePath = filePath + "/" + taskId;
         }
 
-        if(!exist(fs, filePath)){
-            mkdir(fs, filePath);
+        try {
+            if (!exist(fs, filePath)) {
+                mkdir(fs, filePath);
+            }
+        } catch (IOException e) {
+            LOG.error("check HDFS path or create path with path={} failed", filePath, e);
+            throw new IOException("HDFS路径创建失败", e);
         }
 
-
+        write2Hdfs(results, fs);
     }
 
     @Override
@@ -188,15 +208,9 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         conf.set("hadoop.security.authentication", "kerberos");
         conf.setBoolean("hadoop.security.authorization", true);
         UserGroupInformation.setConfiguration(conf);
-        try {
-            UserGroupInformation.loginUserFromKeytab(kerberosUser, keytabPath);
-            FileSystem fs = FileSystem.get(conf);
-            return fs;
-        } catch (IOException e) {
-            LOG.error("Connect to HDFS with user={}, keytab.path={}, krb5.conf.path={}, defaultFS={} failed, ",
-                    kerberosUser, keytabPath, krb5ConfPath, hdfsDefaultFS, e);
-            throw e;
-        }
+        UserGroupInformation.loginUserFromKeytab(kerberosUser, keytabPath);
+        FileSystem fs = FileSystem.get(conf);
+        return fs;
     }
 
     private boolean exist(FileSystem fs, String path) throws IOException {
@@ -207,7 +221,7 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         return fs.mkdirs(new Path(path));
     }
 
-    private void write2Hdfs(List<String> lines, FileSystem fs){
+    private void write2Hdfs(List<String> lines, FileSystem fs) {
 
     }
 
