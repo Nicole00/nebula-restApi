@@ -13,10 +13,12 @@ import com.vesoft.nebula.client.graph.exception.IOErrorException;
 import com.vesoft.nebula.graph.server.exceptions.QueryException;
 import com.vesoft.nebula.graph.server.service.NebulaGraphService;
 import com.vesoft.nebula.graph.server.utils.ResolvePath;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -88,7 +90,7 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         if (sessionPool != null) {
             sessionPool.close();
         }
-        LOG.info("NebulaGraphService.connect, parameters:graphServers={},user={}", graphServers, user);
+        LOG.info("NebulaGraphService.connect, parameters:graphServers={},user={},space={}", graphServers, user, space);
         List<HostAddress> addresses = new ArrayList<>();
         for (String host : graphServers.split(",")) {
             String ip = host.split(":")[0];
@@ -183,7 +185,7 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
                 resultSet.getLatency());
 
         // 解析result中的path
-        if(resultSet.isEmpty()){
+        if (resultSet.isEmpty()) {
             return null;
         }
         return ResolvePath.getPathString(resultSet.getRows());
@@ -214,7 +216,7 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
             throw new IOException("HDFS路径创建失败", e);
         }
 
-        write2Hdfs(results, fs);
+        write2Hdfs(results, fs, filePath);
     }
 
     @Override
@@ -248,8 +250,31 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
         return fs.mkdirs(new Path(path));
     }
 
-    private void write2Hdfs(List<String> lines, FileSystem fs) {
-
+    private void write2Hdfs(List<String> lines, FileSystem fs, String hdfsPath) throws IOException {
+        String uuid = UUID.randomUUID().toString();
+        String localTempPath = "/tmp/" + uuid + ".csv";
+        FileWriter writer = null;
+        try {
+            writer = new FileWriter(localTempPath);
+            for (String line : lines) {
+                writer.write(line);
+            }
+        } catch (IOException e) {
+            LOG.error("create local temp file {} failed.", localTempPath, e);
+            throw e;
+        } finally {
+            if (writer != null) {
+                writer.close();
+            }
+        }
+        try {
+            fs.copyFromLocalFile(new Path(localTempPath), new Path(hdfsPath));
+        } catch (IOException | IllegalArgumentException e) {
+            LOG.error("copy local file {} to HDFS {} failed.", localTempPath, hdfsPath, e);
+            throw e;
+        }
+        String targetPath = hdfsPath + "/" + uuid + ".csv";
+        LOG.info("save result to HDFS {} success.", targetPath);
     }
 
 
