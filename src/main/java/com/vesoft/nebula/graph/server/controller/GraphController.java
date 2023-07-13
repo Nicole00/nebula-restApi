@@ -79,14 +79,39 @@ public class GraphController {
                         "people_name={},ins_id={},ins_name{},depth={},max_out_degree={},file_path={},task_id={}",
                 people_name, ins_id, ins_name, depth, max_out_degree, file_path, task_id);
 
-        if (ins_id == null || "".equals(ins_id) || depth < 0
+        if (ins_id == null || "".equals(ins_id) || depth < 0 || max_out_degree < 0
                 || file_path == null || "".equals(file_path)
                 || task_id == null || "".equals(task_id)) {
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "参数非法", null);
         }
 
-        String statement = "";
-        List<String> results = new ArrayList<>();
+        String getSrcStatement = String.format("$src = lookup on ins where ins.uniscid == \"%s\" YIELD id(vertex) as " +
+                "vid;", ins_id);
+        String getDstStatement = String.format("$dst = get subgraph with prop %d steps from $src.vid both is_gudong, " +
+                "is_gaoguan, is_faren, danbao_ins, gudong_ins yield vertices as v | unwind $-.v as v | yield id($-.v)" +
+                " as vid where \"ins\" in tags($-.v) and id($-.v)<>\"id_\";", depth);
+        String getPath = String.format("$p = find noloop path with prop from $src.vid to $dst.vid over * bidirect " +
+                "upto %d steps yield path as p | yield $-.p as p where all (x in nodes($-.p) where x.statistics" +
+                ".out_degree<%d) | yield id(last(nodes($-.p))) as l, $-.p as p | group by $-.l yield $-.l as l, " +
+                "collect($-.p) as p;", depth, max_out_degree);
+        String getAllInfo = "$r = go from $p.l over is_gudong, is_gaoguan, is_faren, danbao_ins, gudong_ins reversely" +
+                " " +
+                "yield id($^) as src, $^.ins.entname as entname, $^.ins.uniscid as uniscid, $p.p as all_path," +
+                "case type(edge) when \"is_faren\" then $$.people.name_cn + \"（\" + is_faren.title_desc + \"）\" else " +
+                "null end as faren, " +
+                "case type(edge) when \"is_gaoguan\" then $$.people.name_cn + \"（\" + is_gaoguan.title_desc + \"）\" " +
+                "else null end as gaoguan," +
+                "case type(edge) when \"danbao_ins\" then $$.ins.entname + \"（担保机构）\" else null end as danbao," +
+                "case type(edge) when \"gudong_ins\" then " +
+                "case when \"people\" in tags($$) then $$.people.name_cn + \"（自然人股东）\" else $$.ins.entname + " +
+                "\"（非自然人股东）\" end else null end as gudong " +
+                "| group by $-.src yield $-.src as src, max($-.entname) as entname, max($-.uniscid) as uniscid, max" +
+                "($-.all_path) as all_path, collect($-.faren) as faren, collect($-.gaoguan) as gaoguan, collect($-" +
+                ".danbao) as danbao, collect($-.gudong) as gudong;";
+
+
+        String statement = getSrcStatement + getDstStatement + getPath + getAllInfo;
+        List<String> results;
         try {
             results = nebulaGraphService.queryInstrumentRelation(statement);
         } catch (QueryException e) {
@@ -169,7 +194,7 @@ public class GraphController {
         } catch (IOException e) {
             LOG.error("queryInstrumentsRelation failed to save result", e);
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "结果写HDFS失败：" + e.getMessage(), null);
-        }catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             LOG.error("queryInstrumentsRelation failed to create path", e);
             return new NebulaQueryResponse(ErrorCode.ERROR.getErrorCode(), "创建文件失败:" + e.getMessage(), null);
         }

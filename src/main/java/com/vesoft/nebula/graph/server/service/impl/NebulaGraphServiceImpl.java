@@ -162,7 +162,28 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
 
     @Override
     public List<String> queryInstrumentRelation(String statement) throws QueryException, UnsupportedEncodingException {
-        return null;
+        LOG.info("Enter NebulaGraphService.queryInstrumentRelation, parameter: statement={}", statement);
+        ResultSet resultSet = null;
+        try {
+            resultSet = executeNgql(statement);
+        } catch (IOErrorException e) {
+            LOG.error("queryInstrumentRelation error for statement {}", statement, e);
+            throw new QueryException("查询执行失败", e);
+        }
+        if (!resultSet.isSucceeded()) {
+            LOG.error("queryInstrumentRelation failed, failed to execute statement {}, for {}", statement,
+                    resultSet.getErrorMessage());
+            throw new QueryException("查询执行错误:" + resultSet.getErrorMessage(), null);
+        }
+        LOG.info("queryInstrumentRelation success, result row count={}, latency={}",
+                resultSet.getRows().size(),
+                resultSet.getLatency());
+
+        // 解析result中的path
+        if (resultSet.isEmpty()) {
+            return null;
+        }
+        return ResolvePath.getRowString(resultSet);
     }
 
     @Override
@@ -258,6 +279,7 @@ public class NebulaGraphServiceImpl implements NebulaGraphService {
             writer = new FileWriter(localTempPath);
             for (String line : lines) {
                 writer.write(line);
+                writer.write("\n");
             }
         } catch (IOException e) {
             LOG.error("create local temp file {} failed.", localTempPath, e);
